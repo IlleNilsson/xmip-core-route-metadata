@@ -17,7 +17,8 @@
 //! A route technology does not decide anything: it reads.
 
 use message::{Message, MessageCreationSource, MessageDurability, MessagePriority};
-use route::{Source, SourceError};
+use path::Content;
+use route::{Reading, Source};
 
 /// The manifest leaf and the prefix a property carries.
 pub const TECHNOLOGY: &str = "metadata";
@@ -42,32 +43,54 @@ impl Source for MetadataSource {
         TECHNOLOGY
     }
 
-    fn read(&self, message: &Message, name: &str) -> Result<Option<String>, SourceError> {
-        let value = match name {
-            "generation" => message.generation().to_string(),
-            "created-by" => created_by(message.created_by()).to_string(),
-            "sections" => message.sections().len().to_string(),
-            "size" => message
+    fn compile(&self, name: &str) -> Result<Box<dyn Reading>, String> {
+        let known = match name {
+            "generation" => Known::Generation,
+            "created-by" => Known::CreatedBy,
+            "sections" => Known::Sections,
+            "size" => Known::Size,
+            "priority" => Known::Priority,
+            "durability" => Known::Durability,
+            "id" => Known::Id,
+            _ => {
+                return Err(format!(
+                    "not a thing a Message knows about itself; the names are {}",
+                    NAMES.join(", ")
+                ));
+            }
+        };
+        Ok(Box::new(known))
+    }
+}
+
+/// One thing a Message knows about itself, decided when compiled.
+#[derive(Clone, Copy)]
+enum Known {
+    Generation,
+    CreatedBy,
+    Sections,
+    Size,
+    Priority,
+    Durability,
+    Id,
+}
+
+impl Reading for Known {
+    fn read(&self, message: &Message, _: Option<&Content<'_>>) -> Result<Option<String>, String> {
+        Ok(Some(match self {
+            Self::Generation => message.generation().to_string(),
+            Self::CreatedBy => created_by(message.created_by()).to_string(),
+            Self::Sections => message.sections().len().to_string(),
+            Self::Size => message
                 .sections()
                 .iter()
                 .map(|section| section.stream.len())
                 .sum::<usize>()
                 .to_string(),
-            "priority" => priority(message.treatment().priority).to_string(),
-            "durability" => durability(message.treatment().durability).to_string(),
-            "id" => message.message_id().to_string(),
-            other => {
-                return Err(SourceError::new(
-                    TECHNOLOGY,
-                    other,
-                    format!(
-                        "not a thing a Message knows about itself; the names are {}",
-                        NAMES.join(", ")
-                    ),
-                ));
-            }
-        };
-        Ok(Some(value))
+            Self::Priority => priority(message.treatment().priority).to_string(),
+            Self::Durability => durability(message.treatment().durability).to_string(),
+            Self::Id => message.message_id().to_string(),
+        }))
     }
 }
 
@@ -104,6 +127,7 @@ mod tests {
     use super::*;
     use context::MessageContext;
     use message::{ExecutionProfile, MessageSection, MessageTreatment};
+    use route::{Gathering, Promoted, SourceError};
     use stream::Stream;
     use xcore::{MessageId, SectionId, StreamId};
 
@@ -125,11 +149,17 @@ mod tests {
         )
     }
 
+    fn promote(message: &Message, properties: &[&str]) -> Result<Promoted, SourceError> {
+        Gathering::new(&[&MetadataSource], properties).promote(message)
+    }
+
     fn read(message: &Message, name: &str) -> String {
-        MetadataSource
-            .read(message, name)
+        let property = format!("metadata:{name}");
+        promote(message, &[property.as_str()])
             .expect("readable")
+            .get(&property)
             .expect("always a value")
+            .to_string()
     }
 
     #[test]
@@ -174,9 +204,7 @@ mod tests {
 
     #[test]
     fn a_name_outside_the_set_is_refused_naming_the_set() {
-        let refused = MetadataSource
-            .read(&received(), "colour")
-            .expect_err("refused");
+        let refused = promote(&received(), &["metadata:colour"]).expect_err("refused");
         assert_eq!(refused.technology, "metadata");
         assert_eq!(refused.property, "colour");
         assert!(refused.reason.contains("generation, created-by, sections"));
@@ -186,13 +214,8 @@ mod tests {
     fn the_technology_is_metadata_and_promote_reads_the_prefixed_property() {
         assert_eq!(MetadataSource.technology(), "metadata");
 
-        let sources: [&dyn Source; 1] = [&MetadataSource];
-        let promoted = route::promote(
-            &received(),
-            &sources,
-            &["metadata:size", "metadata:created-by"],
-        )
-        .expect("readable");
+        let promoted =
+            promote(&received(), &["metadata:size", "metadata:created-by"]).expect("readable");
 
         assert!(
             path::expression::Expression::parse(
