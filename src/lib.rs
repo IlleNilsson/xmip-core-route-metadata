@@ -104,7 +104,6 @@ mod tests {
     use super::*;
     use context::MessageContext;
     use message::{ExecutionProfile, MessageSection, MessageTreatment};
-    use route::{Predicate, Value};
     use stream::Stream;
     use xcore::{MessageId, SectionId, StreamId};
 
@@ -196,14 +195,12 @@ mod tests {
         .expect("readable");
 
         assert!(
-            Predicate::less_than("metadata:size", Value::Integer(1024))
-                .test(&promoted)
-                .passed()
-        );
-        assert!(
-            Predicate::equals("metadata:created-by", Value::Text("receive".into()))
-                .test(&promoted)
-                .passed()
+            path::expression::Expression::parse(
+                "metadata:size < 1024 and metadata:created-by = 'receive'"
+            )
+            .expect("compiles")
+            .evaluate(&promoted)
+            .holds()
         );
     }
 }
