@@ -204,9 +204,9 @@ mod tests {
 
     #[test]
     fn a_name_outside_the_set_is_refused_naming_the_set() {
-        let refused = promote(&received(), &["metadata:colour"]).expect_err("refused");
+        let refused = promote(&received(), &["metadata:color"]).expect_err("refused");
         assert_eq!(refused.technology, "metadata");
-        assert_eq!(refused.property, "colour");
+        assert_eq!(refused.property, "color");
         assert!(refused.reason.contains("generation, created-by, sections"));
     }
 
