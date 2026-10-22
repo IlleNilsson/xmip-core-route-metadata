@@ -101,6 +101,8 @@ const fn created_by(source: MessageCreationSource) -> &'static str {
         MessageCreationSource::Assignment => "assignment",
         MessageCreationSource::Transformation => "transformation",
         MessageCreationSource::SendPreparation => "send-preparation",
+        MessageCreationSource::Batch => "batch",
+        MessageCreationSource::Debatch => "debatch",
     }
 }
 
