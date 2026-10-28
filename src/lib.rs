@@ -6,7 +6,7 @@
 //! one source. This source reads what the Message knows about itself, none of
 //! which is content and none of which is context: `metadata:generation`, how
 //! many times content or metadata changed since Receive; `metadata:created-by`,
-//! which of receive, assignment, transformation and send-preparation produced
+//! which of receive, assignment, transformation, batch and debatch produced
 //! this generation; `metadata:sections`, how many addressable parts it has;
 //! `metadata:size`, the bytes across them; `metadata:priority` and
 //! `metadata:durability`, the treatment it was declared with; and
@@ -100,7 +100,6 @@ const fn created_by(source: MessageCreationSource) -> &'static str {
         MessageCreationSource::Receive => "receive",
         MessageCreationSource::Assignment => "assignment",
         MessageCreationSource::Transformation => "transformation",
-        MessageCreationSource::SendPreparation => "send-preparation",
         MessageCreationSource::Batch => "batch",
         MessageCreationSource::Debatch => "debatch",
     }
