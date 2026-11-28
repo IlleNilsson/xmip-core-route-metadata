@@ -219,7 +219,7 @@ mod tests {
             promote(&received(), &["metadata:size", "metadata:created-by"]).expect("readable");
 
         assert!(
-            path::expression::Expression::parse(
+            expression::Expression::parse(
                 "metadata:size < 1024 and metadata:created-by = 'receive'"
             )
             .expect("compiles")
